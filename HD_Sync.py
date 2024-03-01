@@ -23,6 +23,6 @@ number_to_search = float(input("Enter a UTC time to search (example enter 133020
 
 result = search_number_in_file(filename, number_to_search)
 if result:
-    print("\nTime lock is (copy and paste the following into 'Jump to Time' VLC plugin):\n\n", milliseconds_to_hours_minutes_seconds(int(result)))
+    print("\nTime lock is (copy and paste the following into 'VBOX HD Sync' VLC plugin):\n\n", milliseconds_to_hours_minutes_seconds(int(result)))
 else:
     print("Number not found in the file.")
