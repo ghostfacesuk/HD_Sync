@@ -1,14 +1,14 @@
 # VBOX HD Sync
 
 ## Notes
-Windows only
-At the moment the vbo file name is hardcoded so you will need to update the file name in the python script before running!
+- Windows only
+- At the moment the vbo file name is hardcoded so you will need to update the file name in the python script before running!
 
 ## Installation
-Need Python3 installed
-Need VLC media player installed 
-Copy the VBOX HD Sync.lua file to the following directory (C:\Program Files (x86)\VideoLAN\VLC\lua\extensions)
-Make a New Folder and copy across the VBO file, the mp4 file, and the HD_Sync.py file (so they are all in the same)
+- Need Python3 installed
+- Need VLC media player installed 
+- Copy the VBOX HD Sync.lua file to the following directory (C:\Program Files (x86)\VideoLAN\VLC\lua\extensions)
+- Make a New Folder and copy across the VBO file, the mp4 file, and the HD_Sync.py file (so they are all in the same)
 
 ## Usage
 - Load the HD files into VBTS and find a UTC time of interest (in the data or on the video overlay if it is present)
