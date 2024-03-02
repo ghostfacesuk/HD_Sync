@@ -67,47 +67,14 @@ body {background-color:white;}
 
 <body>
 <div id=header>
-<b>Jump to time</b> (Previous frame) is VLC Extension that can:<br />
-&nbsp;- jump to a desired time in a played media;<br />
-&nbsp;- jump forward/backward by a desired time length;<br />
-&nbsp;- split-second jumps imitating previous/next frame;*<br />
-&nbsp;- show actual playback time with milliseconds;<br />
-&nbsp;- use time longer than 24 hours;<br />
-&nbsp;- repeat a desired scene again and again (A-loop);<br />
-&nbsp;- convert time.<br />
-It cannot make a cup of coffee for you :-)
+<b>VBOX HD Sync</b> (Previous frame) is VLC Extension that can:<br />
+&nbsp;- jump to a specific video frame;<br />
 </div>
 <hr />
 
-<center><b><a class=marker_red>&nbsp;Instructions&nbsp;</a></b></center>
-<b class=button>[Get&nbsp;time&nbsp;&gt;&gt;]</b> - press the button to get current playback time with milliseconds into input field.<br />
-<b><a class=input>[00:00:00,000&nbsp;&nbsp;&nbsp;]</a></b> - current playback time appears automatically in the input field if a media is already playing in VLC during activation of the extension. Feel free to edit the time string or type in a new one.<br />
-<b class=button>[&gt;&gt;&nbsp;Set&nbsp;time]</b> - press the button to jump to a desired time.<br />
-<b class=button>[Time&nbsp;format]</b> - press the button to switch time format and to convert time (> hours:min:sec > minutes:sec > seconds > days/hour:min:sec >).
-<hr />
-<b><a class=input>[2&nbsp;sec&nbsp;&nbsp;&nbsp;&nbsp;|v]</a></b> - select a desired length of jump in a drop-down list, then press <b class=button>[Use&nbsp;selected]</b> button to apply the selected value into the <b><a class=input>[2&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;]</a></b> input field below the drop-down menu. Edit or type in a new time string there. Try split-second time lengths (1/fps) for imitation of frames.<br />
-<b class=button>[Backward&nbsp;&lt;&lt;]</b> / <b class=button>[&gt;&gt;&nbsp;Forward]</b> - press the button to jump bacward/forwad by a desired time length.<br />
-<br />
-Supported <b>delimiters</b> in time strings:<b class=marker_red> :/*-+</b><br />
-Supported <b>decimal separators:</b><b class=marker_red> ,.</b><br />
-Supported <b>hotkeys</b> in focused dialog window (not OS X): <b class=marker_green>Alt+G</b>, <b class=marker_green>Alt+S</b>, <b class=marker_green>Alt+T</b>, <b class=marker_green>Alt+U</b>, <b class=marker_green>Alt+B</b>, <b class=marker_green>Alt+F</b>.<br />
-<br />
-<b>Examples of valid time strings:</b> "8:16,32", "8/16.32", "25//", "1/:120,5: 61,250 ".<br />
-<div class=tip><b>* Split-second jumps do not work well with all media formats!</b> Tiny jumps work well in AVI{XVID, MP3} classic.</b><br /> Try to experiment with different (higher) FPS values than an exact frame rate of played video. Might be better. Keep clicking the backward/forward button.</div>
+<b>Example of valid time string:</b> "HH:MM:SS,SSS".<br />
 <hr />
 
-<div id=footer>
-<b>Forum:</b> <a href="http://forum.videolan.org/viewtopic.php?f=29&t=100885">VLC extension: Previous frame</a><br />
-<b>VLC Lua scripting:</b> <a href="http://forum.videolan.org/viewtopic.php?f=29&t=98644#p330318">Getting started?</a><br />
-Please, visit us and bring some new ideas.<br />
-Learn how to write your own scripts and share them with us.<br />
-Help to build happy VLC community :o)
-</div>
-<pre>
-     www
-    (. .)
--ooo-(_)-ooo-
-</pre>
 </body>
 ]]
 function trigger_menu(id)
