@@ -1,3 +1,6 @@
+import tkinter as tk
+from tkinter import filedialog
+
 def milliseconds_to_hours_minutes_seconds(milliseconds):
     total_seconds = milliseconds / 1000
     hours = int(total_seconds // 3600)
@@ -18,11 +21,19 @@ def search_number_in_file(filename, number):
                     continue  # Skip lines that cannot be converted to floats or don't have enough parameters
     return None
 
-filename = "VBOX0001.vbo"  # Update with the relevant VBO file name
-number_to_search = float(input("Enter a UTC time to search (example enter 133020.10 to seek 13:30:20.10 UTC time): "))
+root = tk.Tk()
+root.withdraw()  # Hide the root window
 
-result = search_number_in_file(filename, number_to_search)
-if result:
-    print("\nTime lock is (copy and paste the following into 'VBOX HD Sync' VLC plugin):\n\n", milliseconds_to_hours_minutes_seconds(int(result)))
+# Ask user to select a file
+file_path = filedialog.askopenfilename(title="Select VBO file", filetypes=(("VBO files", "*.vbo"), ("All files", "*.*")))
+
+if file_path:
+    number_to_search = float(input("Enter a UTC time to search (example enter 133020.10 to seek 13:30:20.10 UTC time): "))
+
+    result = search_number_in_file(file_path, number_to_search)
+    if result:
+        print("\nTime lock is (copy and paste the following into 'VBOX HD Sync' VLC plugin):\n\n", milliseconds_to_hours_minutes_seconds(int(result)))
+    else:
+        print("Number not found in the file.")
 else:
-    print("Number not found in the file.")
+    print("No file selected.")
