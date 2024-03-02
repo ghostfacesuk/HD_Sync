@@ -149,11 +149,11 @@ function Create_dialog()
 	d:add_label(string.rep("&nbsp;",27),3,1,1,1)
 
 	-- the first button is the default submit button (not OS X)
-	d:add_button(ampersand.."Time format", click_Switch_time_format, 1,2,1,1)
+	-- d:add_button(ampersand.."Time format", click_Switch_time_format, 1,2,1,1)
 
-	d:add_button(ampersand.."Get time >>", click_Get_time, 1,1,1,1)
+	d:add_button(ampersand.."Get current time", click_Get_time, 1,1,1,1)
 	textinput_time = d:add_text_input(Time2string(0), 2,1,1,1) -- "00:00:00,000"
-	d:add_button(">> "..ampersand.."Set time", click_Set_time, 3,1,1,1)
+	d:add_button(""..ampersand.."Jump to time", click_Set_time, 3,1,1,1)
 
 	dropdown_jump = d:add_dropdown(2,2,1,1)
 	for i,v in ipairs(jumps) do

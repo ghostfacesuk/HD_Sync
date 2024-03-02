@@ -7,7 +7,7 @@
 ## Installation
 - Need Python3 installed
 - Need VLC media player installed 
-- Copy the VBOX HD Sync.lua file to the following directory (C:\Program Files (x86)\VideoLAN\VLC\lua\extensions)
+- Copy the VBOX HD Sync.lua file to the following directory (C:\Program Files (x86)\VideoLAN\VLC\lua\extensions OR C:\Users\%userprofile%\AppData\Roaming\vlc\lua\extensions)
 
 ## Usage
 - Load the VBOX HD files into VBTS and find a UTC time of interest (in the data or on the video overlay if it is present)
