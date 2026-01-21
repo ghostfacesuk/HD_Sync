@@ -25,7 +25,7 @@ jumps = { -- drop-down list
 function descriptor()
 	return {
 		title = "VBOX HD Sync",
-		version = "1.0",
+		version = "1.6",
 		author = "SG",
 --		shortdesc = "Jump to time (Previous frame)",
 		description = [[
@@ -54,25 +54,27 @@ end
 
 help = [[
 <style type="text/css">
-body {background-color:white;} 
-.hello{font-family:"Arial black";font-size:48px;color:red;background-color:lime}
+body {background-color:white;}
 #header{background-color:lightgreen;}
-.marker_red{background-color:#FF7FAA;}
-.marker_green{background-color:lightgreen;}
-.input{background-color:lightblue;}
-.button{background-color:silver;}
 .tip{background-color:#FFFF7F;}
-#footer{background-color:lightblue;}
 </style>
 
 <body>
 <div id=header>
-<b>VBOX HD Sync</b> (Previous frame) is VLC Extension that can:<br />
-&nbsp;- jump to a specific video frame;<br />
+<b>VBOX HD Sync</b> - Frame-accurate video sync tool<br />
 </div>
 <hr />
 
-<b>Example of valid time string:</b> "HH:MM:SS,SSS".<br />
+<b>How to use:</b><br />
+1. Select "1/FPS" from dropdown and click "Use selected" to set frame rate<br />
+2. Play video, pause at desired location<br />
+3. Click "Get current time" to establish baseline<br />
+4. Use "Frame Next >" / "< Frame Back" buttons to step through frames<br />
+5. Each frame step will show the exact frame time<br />
+<br />
+<b>Note:</b> VLC's 'e' key won't update the time display. Use the Frame buttons instead.<br />
+<br />
+<b>Time format:</b> "HH:MM:SS,SSS"<br />
 <hr />
 
 </body>
@@ -111,28 +113,20 @@ function Create_dialog()
 
 	d = vlc.dialog(descriptor().title)
 
-	d:add_label(string.rep("&nbsp;",27),1,1,1,1)
-	d:add_label(string.rep("&nbsp;",28),2,1,1,1)
-	d:add_label(string.rep("&nbsp;",27),3,1,1,1)
-
-	-- the first button is the default submit button (not OS X)
-	-- d:add_button(ampersand.."Time format", click_Switch_time_format, 1,2,1,1)
-
+	-- Row 1: Time display and controls
 	d:add_button(ampersand.."Get current time", click_Get_time, 1,1,1,1)
-	textinput_time = d:add_text_input(Time2string(0), 2,1,1,1) -- "00:00:00,000"
+	textinput_time = d:add_text_input(Time2string(0), 2,1,1,1)
 	d:add_button(""..ampersand.."Jump to time", click_Set_time, 3,1,1,1)
 
-	dropdown_jump = d:add_dropdown(2,2,1,1)
+	-- Row 2: Frame stepping buttons (side by side, no dropdown between)
+	d:add_button("< "..ampersand.."Frame", function() click_frame_step(-1) end, 1,2,1,1)
+	d:add_button(ampersand.."Frame >", function() click_frame_step(1) end, 2,2,1,1)
+
+	-- Row 3: FPS dropdown
+	dropdown_jump = d:add_dropdown(1,3,2,1)
 	for i,v in ipairs(jumps) do
 		dropdown_jump:add_value(v[1],i)
 	end
-	d:add_button(ampersand.."Use selected", click_Use_jump, 3,2,1,1)
-
-	d:add_button("<< "..ampersand.."Backward", function() click_Jump(-1) end, 1,3,1,1)
-	textinput_jump = d:add_text_input(jumps[1][2], 2,3,1,1) -- default jump length (1-st in the list)
-	d:add_button(ampersand.."Forward >>", function() click_Jump(1) end, 3,3,1,1)
-
-	d:add_button(ampersand.."Pause ||> "..ampersand.."Play", function() vlc.playlist.pause() end, 2,4,1,1)
 end
 
 function click_Jump(direction)
@@ -151,14 +145,10 @@ function click_Use_jump()
 			textinput_jump:set_text(1/number)
 		end
 	elseif selected_jump=="vlcfps" then
-		if vlc.input.item() then
-			for k0,v0 in pairs(vlc.input.item():info()) do
-				--vlc.msg.info(tostring(k0))
-				for k1,v1 in pairs(v0) do
-					--vlc.msg.info(tostring(k1).." = " .. tostring(tonumber(v1)))
-					if tonumber(v1) then textinput_jump:set_text(1/v1) return end
-				end
-			end
+		local fps = get_current_fps()
+		if fps and fps > 0 then
+			textinput_jump:set_text(1/fps)
+			return
 		end
 		textinput_jump:set_text(0)
 	else
@@ -166,14 +156,236 @@ function click_Use_jump()
 	end
 end
 
-function click_Get_time()
+local last_raw_time_us = nil
+local last_pos = nil
+local frame_base_time_us = nil
+local frame_base_pictures = nil
+local cached_fps = nil
+local cached_fps_key = nil
+local last_item_key = nil
+
+function parse_fps_value(value)
+	if value == nil then return nil end
+	local s = tostring(value)
+	s = string.gsub(s, ",", ".")
+	local n = tonumber(s)
+	if n and n > 0 then return n end
+	local a, b = string.match(s, "(%d+)%s*/%s*(%d+)")
+	if a and b then
+		local num = tonumber(a)
+		local den = tonumber(b)
+		if num and den and den ~= 0 then return num / den end
+	end
+	return nil
+end
+
+function get_item_key()
+	local item = vlc.input.item()
+	if not item then return nil end
+	local key = item:uri()
+	if not key or key == "" then key = item:name() end
+	return key
+end
+
+function get_item_fps()
+	local item = vlc.input.item()
+	if not item then return nil end
+	local info = item:info()
+	if not info then return nil end
+	for _, group in pairs(info) do
+		for k, v in pairs(group) do
+			local kl = string.lower(tostring(k))
+			if string.find(kl, "frame rate", 1, true) or string.find(kl, "fps", 1, true) then
+				local fps = parse_fps_value(v)
+				if fps and fps > 0 then return fps end
+			end
+		end
+	end
+	return nil
+end
+
+function get_current_fps()
+	local key = get_item_key()
+	if cached_fps and cached_fps_key == key then return cached_fps end
+	cached_fps = nil
+	cached_fps_key = key
+
+	local input = vlc.object.input()
+	if input then
+		local fps = parse_fps_value(vlc.var.get(input, "fps"))
+		if fps and fps > 0 then
+			cached_fps = fps
+			return cached_fps
+		end
+	end
+
+	local fps = get_item_fps()
+	if fps and fps > 0 then
+		cached_fps = fps
+		return cached_fps
+	end
+
+	if dropdown_jump and textinput_jump then
+		local idx = dropdown_jump:get_value()
+		local entry = idx and jumps[idx]
+		if entry and entry[2] == "vlcfps" then
+			local sec = tonumber(string.gsub(textinput_jump:get_text(), ",", "."))
+			if sec and sec > 0 then
+				cached_fps = 1 / sec
+				return cached_fps
+			end
+		end
+	end
+
+	return nil
+end
+
+function get_displayed_pictures()
+	local item = vlc.input.item()
+	if not item then return nil end
+	local stats = item:stats()
+	if stats and stats.displayed_pictures then return stats.displayed_pictures end
+	return nil
+end
+
+local last_displayed_pictures = nil
+local last_reliable_time_us = nil
+local last_reliable_pictures = nil
+
+-- Manual frame tracking for accurate frame stepping
+local manual_frame_base_time_us = nil
+local manual_frame_offset = 0
+local manual_tracking_enabled = false
+
+function get_current_time_us()
 	local input=vlc.object.input()
-	if input then textinput_time:set_text(Time2string(vlc.var.get(input,"time"))) end
+	if not input then return nil end
+
+	local item_key = get_item_key()
+	if item_key ~= last_item_key then
+		last_item_key = item_key
+		last_raw_time_us = nil
+		last_pos = nil
+		frame_base_time_us = nil
+		frame_base_pictures = nil
+		last_displayed_pictures = nil
+		last_reliable_time_us = nil
+		last_reliable_pictures = nil
+		manual_frame_base_time_us = nil
+		manual_frame_offset = 0
+		manual_tracking_enabled = false
+	end
+
+	-- Get FPS and frame duration first
+	local fps = get_current_fps()
+	local frame_us = nil
+	if fps and fps > 0 then
+		frame_us = 1000000.0 / fps
+	end
+
+	-- Get VLC's current time
+	local time_us = vlc.var.get(input, "time")
+
+	-- If manual frame tracking is active, use it
+	if manual_tracking_enabled and manual_frame_base_time_us and frame_us then
+		local calculated_time = manual_frame_base_time_us + math.floor(manual_frame_offset * frame_us + 0.5)
+		return calculated_time
+	end
+
+	-- Otherwise return VLC's reported time
+	return time_us
+end
+
+function click_Get_time()
+	local time_us = get_current_time_us()
+	if time_us then
+		textinput_time:set_text(Time2string(time_us))
+
+		-- Enable manual tracking and set baseline when getting current time
+		manual_frame_base_time_us = time_us
+		manual_frame_offset = 0
+		manual_tracking_enabled = true
+
+		-- Debug info
+		local fps = get_current_fps()
+		vlc.msg.info(string.format("Baseline set: %s | FPS: %s | Manual tracking: ENABLED",
+			Time2string(time_us),
+			fps and string.format("%.3f", fps) or "unknown"))
+	end
+end
+
+function click_frame_step(direction)
+	local input = vlc.object.input()
+	if not input then
+		vlc.msg.warn("No input object")
+		return
+	end
+
+	local fps = get_current_fps()
+	if not fps or fps <= 0 then
+		vlc.msg.warn("FPS not detected. Select 1/FPS from dropdown first.")
+		return
+	end
+
+	-- Pause the video if it's playing (frame step only works when paused)
+	if vlc.playlist.status() == "playing" then
+		vlc.playlist.pause()
+		vlc.msg.info("Paused video for frame stepping")
+	end
+
+	-- Enable manual tracking if not already enabled
+	if not manual_tracking_enabled then
+		local time_us = vlc.var.get(input, "time")
+		if time_us then
+			manual_frame_base_time_us = time_us
+			manual_frame_offset = 0
+			manual_tracking_enabled = true
+			vlc.msg.info("Manual tracking enabled at: " .. Time2string(time_us))
+		end
+	end
+
+	-- Step the frame in VLC (only forward stepping is reliable in VLC API)
+	if direction > 0 then
+		vlc.var.set(input, "frame-next", nil)
+		vlc.msg.info("Stepping forward")
+	else
+		-- Backward frame stepping: jump back slightly then step forward
+		local frame_us = 1000000.0 / fps
+		local current_time = vlc.var.get(input, "time")
+		-- Jump back 2 frames, VLC will land nearby, then we track from there
+		local target_time = current_time - (frame_us * 2)
+		if target_time < 0 then target_time = 0 end
+		vlc.var.set(input, "time", target_time)
+		vlc.msg.info("Stepping backward (jump back method)")
+	end
+
+	-- Update our manual frame counter
+	manual_frame_offset = manual_frame_offset + direction
+
+	-- Update display
+	local time_us = get_current_time_us()
+	if time_us then
+		textinput_time:set_text(Time2string(time_us))
+		vlc.msg.info(string.format("Frame %+d | Time: %s", manual_frame_offset, Time2string(time_us)))
+	end
+end
+
+function click_reset_tracking()
+	manual_tracking_enabled = false
+	manual_frame_offset = 0
+	manual_frame_base_time_us = nil
+	vlc.msg.info("Manual tracking reset")
 end
 
 function click_Set_time()
 	local input=vlc.object.input()
-	if input then vlc.var.set(input,"time",String2time(textinput_time:get_text())) end
+	if input then
+		vlc.var.set(input,"time",String2time(textinput_time:get_text()))
+		-- Reset manual tracking when jumping to a new time
+		manual_tracking_enabled = false
+		manual_frame_offset = 0
+		manual_frame_base_time_us = nil
+	end
 end
 
 function click_Switch_time_format()
