@@ -297,21 +297,46 @@ function get_current_time_us()
 end
 
 function click_Get_time()
+	local input = vlc.object.input()
+	if not input then return end
+
+	-- Get VLC's actual reported time
+	local vlc_time_us = vlc.var.get(input, "time")
+	if not vlc_time_us then return end
+
+	-- Get the current time (might be calculated if manual tracking is active)
 	local time_us = get_current_time_us()
-	if time_us then
-		textinput_time:set_text(Time2string(time_us))
 
-		-- Enable manual tracking and set baseline when getting current time
-		manual_frame_base_time_us = time_us
-		manual_frame_offset = 0
-		manual_tracking_enabled = true
-
-		-- Debug info
-		local fps = get_current_fps()
-		vlc.msg.info(string.format("Baseline set: %s | FPS: %s | Manual tracking: ENABLED",
-			Time2string(time_us),
-			fps and string.format("%.3f", fps) or "unknown"))
+	-- If manual tracking is active, check if user has seeked to a different position
+	-- (VLC time is significantly different from calculated time)
+	if manual_tracking_enabled and manual_frame_base_time_us then
+		local time_diff = math.abs(vlc_time_us - time_us)
+		-- If difference is more than 0.5 seconds, user probably seeked to a new position
+		if time_diff > 500000 then  -- 0.5 seconds in microseconds
+			-- User has seeked, use VLC's actual time as new baseline
+			time_us = vlc_time_us
+			vlc.msg.info("Detected seek to new position, using VLC time")
+		else
+			-- Times are close, user has been frame stepping, keep calculated time
+			vlc.msg.info("Keeping frame-stepped position")
+		end
+	else
+		-- Manual tracking not active, use VLC's time
+		time_us = vlc_time_us
 	end
+
+	textinput_time:set_text(Time2string(time_us))
+
+	-- Update manual tracking baseline to current position
+	manual_frame_base_time_us = time_us
+	manual_frame_offset = 0
+	manual_tracking_enabled = true
+
+	-- Debug info
+	local fps = get_current_fps()
+	vlc.msg.info(string.format("Baseline set: %s | FPS: %s | Manual tracking: ENABLED",
+		Time2string(time_us),
+		fps and string.format("%.3f", fps) or "unknown"))
 end
 
 function click_frame_step(direction)
