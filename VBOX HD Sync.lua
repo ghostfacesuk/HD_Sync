@@ -74,7 +74,7 @@ body {background-color:white;}
 <br />
 <b>Note:</b> VLC's 'e' key won't update the time display. Use the Frame buttons instead.<br />
 <br />
-<b>Time format:</b> "HH:MM:SS,SSS"<br />
+<b>Time format:</b> "HH:MM:SS,SSSSSS" (microsecond precision for frame-accurate timing)<br />
 <hr />
 
 </body>
@@ -300,42 +300,24 @@ function click_Get_time()
 	local input = vlc.object.input()
 	if not input then return end
 
-	-- Get VLC's actual reported time
-	local vlc_time_us = vlc.var.get(input, "time")
-	if not vlc_time_us then return end
+	-- ALWAYS get VLC's actual reported time - no calculations, no guessing
+	local time_us = vlc.var.get(input, "time")
+	if not time_us then return end
 
-	-- Get the current time (might be calculated if manual tracking is active)
-	local time_us = get_current_time_us()
-
-	-- If manual tracking is active, check if user has seeked to a different position
-	-- (VLC time is significantly different from calculated time)
-	if manual_tracking_enabled and manual_frame_base_time_us then
-		local time_diff = math.abs(vlc_time_us - time_us)
-		-- If difference is more than 0.5 seconds, user probably seeked to a new position
-		if time_diff > 500000 then  -- 0.5 seconds in microseconds
-			-- User has seeked, use VLC's actual time as new baseline
-			time_us = vlc_time_us
-			vlc.msg.info("Detected seek to new position, using VLC time")
-		else
-			-- Times are close, user has been frame stepping, keep calculated time
-			vlc.msg.info("Keeping frame-stepped position")
-		end
-	else
-		-- Manual tracking not active, use VLC's time
-		time_us = vlc_time_us
-	end
-
+	-- Display the precise time
 	textinput_time:set_text(Time2string(time_us))
 
 	-- Update manual tracking baseline to current position
+	-- This is used ONLY for frame stepping, not for get/set operations
 	manual_frame_base_time_us = time_us
 	manual_frame_offset = 0
 	manual_tracking_enabled = true
 
 	-- Debug info
 	local fps = get_current_fps()
-	vlc.msg.info(string.format("Baseline set: %s | FPS: %s | Manual tracking: ENABLED",
+	vlc.msg.info(string.format("Time captured: %s (%.6f sec) | FPS: %s",
 		Time2string(time_us),
+		time_us / 1000000.0,
 		fps and string.format("%.3f", fps) or "unknown"))
 end
 
@@ -404,13 +386,21 @@ end
 
 function click_Set_time()
 	local input=vlc.object.input()
-	if input then
-		vlc.var.set(input,"time",String2time(textinput_time:get_text()))
-		-- Reset manual tracking when jumping to a new time
-		manual_tracking_enabled = false
-		manual_frame_offset = 0
-		manual_frame_base_time_us = nil
-	end
+	if not input then return end
+
+	local target_time_us = String2time(textinput_time:get_text())
+	vlc.var.set(input, "time", target_time_us)
+
+	-- After seeking, establish the new position as the baseline for manual tracking
+	-- We set the baseline to the requested time (not VLC's actual resulting position)
+	-- because VLC may not seek to the exact microsecond
+	manual_frame_base_time_us = target_time_us
+	manual_frame_offset = 0
+	manual_tracking_enabled = true
+
+	vlc.msg.info(string.format("Jumped to: %s (%.6f sec)",
+		Time2string(target_time_us),
+		target_time_us / 1000000.0))
 end
 
 function click_Switch_time_format()
@@ -428,14 +418,14 @@ end
 function Time2string(timestamp)
 	timestamp=timestamp/1000000 -- VLC 3 microseconds fix
 	if not time_format then time_format=3 end
-	if time_format==3 then -- H:m:s,ms
-		return string.format("%02d:%02d:%06.3f", math.floor(timestamp/3600), math.floor(timestamp/60)%60, timestamp%60):gsub("%.",",")
-	elseif time_format==2 then -- M:s,ms
-		return string.format("%02d:%06.3f", math.floor(timestamp/60), timestamp%60):gsub("%.",",")
-	elseif time_format==1 then -- S,ms
-		return string.format("%5.3f", timestamp):gsub("%.",",")
-	elseif time_format==4 then -- D/h:m:s,ms
-		return string.format("%d/%02d:%02d:%06.3f", math.floor(timestamp/(24*60*60)), math.floor(timestamp/(60*60))%24, math.floor(timestamp/60)%60, timestamp%60):gsub("%.",",")
+	if time_format==3 then -- H:m:s,microseconds (6 decimal places for frame-accurate precision)
+		return string.format("%02d:%02d:%09.6f", math.floor(timestamp/3600), math.floor(timestamp/60)%60, timestamp%60):gsub("%.",",")
+	elseif time_format==2 then -- M:s,microseconds
+		return string.format("%02d:%09.6f", math.floor(timestamp/60), timestamp%60):gsub("%.",",")
+	elseif time_format==1 then -- S,microseconds
+		return string.format("%.6f", timestamp):gsub("%.",",")
+	elseif time_format==4 then -- D/h:m:s,microseconds
+		return string.format("%d/%02d:%02d:%09.6f", math.floor(timestamp/(24*60*60)), math.floor(timestamp/(60*60))%24, math.floor(timestamp/60)%60, timestamp%60):gsub("%.",",")
 	end
 end
 
